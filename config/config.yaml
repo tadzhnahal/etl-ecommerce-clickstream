@@ -1,0 +1,46 @@
+project:
+  name: etl-ecommerce-clickstream
+
+source:
+  type: postgres
+  host: localhost
+  port: 5432
+  database: ecommerce
+  user: tadzhnahal
+  schema: raw
+  table: events
+
+target:
+  type: clickhouse
+  host: localhost
+  http_port: 8123
+  native_port: 9000
+  database: analytics
+  user: tadzhnahal
+  tables:
+    events_clean: dm_events_clean
+    product_metrics: dm_product_metrics
+    category_metrics: dm_category_metrics
+    funnel_metrics: dm_funnel_metrics
+
+etl:
+  batch_size: 100000
+  hwm_column: event_time
+
+hwm_store:
+  type: yaml
+  path: ./state/hwm.yaml
+
+spark:
+  app_name: etl-ecommerce-clickstream
+  master: local[*]
+  timezone: UTC
+  shuffle_partitions: 8
+
+api:
+  host: 0.0.0.0
+  port: 8000
+
+celery:
+  broker_url: redis://localhost:6379/0
+  result_backend: redis://localhost:6379/1

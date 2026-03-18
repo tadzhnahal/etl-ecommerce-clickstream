@@ -48,6 +48,15 @@ def transform_clickstream(df):
     # убираем строки без product_id
     df = df.filter(F.col("product_id").isNotNull())
 
+    # чистим "NaN"
+    df = df.withColumn(
+        "category_code",
+        F.when(
+            F.lower(F.trim(F.col("category_code"))) == "nan",
+            F.lit(None)
+        ).otherwise(F.col("category_code")),
+    )
+
     # добавляем простые временные поля
     df = df.withColumn("event_date", F.to_date("event_time"))
     df = df.withColumn("event_hour", F.hour("event_time"))

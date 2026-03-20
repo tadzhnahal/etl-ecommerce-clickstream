@@ -1,6 +1,7 @@
 import os
 import time
 from pathlib import Path
+import clickhouse_connect
 from dotenv import load_dotenv
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
@@ -46,7 +47,7 @@ def read_source_table(spark: SparkSession):
 def transform_clickstream(df):
     before_count = df.count()
 
-    df = df.filter (F.col("event_time").isNotNull())
+    df = df.filter(F.col("event_time").isNotNull())
     df = df.filter(F.col("product_id").isNotNull())
 
     df = df.withColumn(
@@ -71,26 +72,23 @@ def transform_clickstream(df):
 
     return df, before_count, after_count
 
-def truncate_clickhouse_table(spark: SparkSession) -> None:
+def truncate_clickhouse_table() -> None:
     clickhouse_host = os.getenv("CLICKHOUSE_HOST", "localhost")
-    clickhouse_http_port = os.getenv("CLICKHOUSE_HTTP_PORT", "8123")
+    clickhouse_http_port = int(os.getenv("CLICKHOUSE_HTTP_PORT", "8123"))
     clickhouse_db = os.getenv("CLICKHOUSE_DB", "analytics")
     clickhouse_user = os.getenv("CLICKHOUSE_USER", "tadzhnahal")
     clickhouse_password = os.getenv("CLICKHOUSE_PASSWORD", "")
 
-    jdbc_url = f"jdbc:clickhouse://{clickhouse_host}:{clickhouse_http_port}/{clickhouse_db}"
-
-    query = "truncate table analytics.dm_events_clean"
-
-    (
-        spark.read.format("jdbc")
-        .option("url", jdbc_url)
-        .option("query", query)
-        .option("user", clickhouse_user)
-        .option("password", clickhouse_password)
-        .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
-        .load()
+    client = clickhouse_connect.get_client(
+        host=clickhouse_host,
+        port=clickhouse_http_port,
+        username=clickhouse_user,
+        password=clickhouse_password,
+        database=clickhouse_db,
     )
+
+    client.command("truncate table dm_events_clean")
+    client.close()
 
 def write_to_clickhouse(df):
     clickhouse_host = os.getenv("CLICKHOUSE_HOST", "localhost")
@@ -142,13 +140,16 @@ def main() -> None:
     spark = get_spark()
 
     try:
-        print("\nStart full_snapshot\n")
+        print("\nStart full snapshot\n")
 
         source_df = read_source_table(spark)
         transformed_df, before_count, after_count = transform_clickstream(source_df)
 
         print(f"Rows before filtering: {before_count}")
         print(f"Rows after filtering: {after_count}")
+
+        print("Clear ClickHouse target table")
+        truncate_clickhouse_table()
 
         write_count = write_to_clickhouse(transformed_df)
 

@@ -1,76 +1,10 @@
 import os
 import time
-from pathlib import Path
 import clickhouse_connect
-from dotenv import load_dotenv
-from pyspark.sql import SparkSession
-import pyspark.sql.functions as F
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-def load_env() -> None:
-    load_dotenv(BASE_DIR / ".env")
-
-def get_spark() -> SparkSession:
-    return (
-        SparkSession.builder
-        .appName("full_snapshot")
-        .master("local[*]")
-        .config(
-            "spark.jars.packages",
-            "org.postgresql:postgresql:42.7.3,com.clickhouse:clickhouse-jdbc:0.6.0",
-        )
-        .getOrCreate()
-    )
-
-def read_source_table(spark: SparkSession):
-    postgres_host = os.getenv("POSTGRES_HOST", "localhost")
-    postgres_port = os.getenv("POSTGRES_PORT", "5432")
-    postgres_db = os.getenv("POSTGRES_DB", "ecommerce")
-    postgres_user = os.getenv("POSTGRES_USER", "tadzhnahal")
-    postgres_password = os.getenv("POSTGRES_PASSWORD", "")
-
-    jdbc_url = f"jdbc:postgresql://{postgres_host}:{postgres_port}/{postgres_db}"
-
-    df = (
-        spark.read.format("jdbc")
-        .option("url", jdbc_url)
-        .option("dbtable", "raw.events")
-        .option("user", postgres_user)
-        .option("password", postgres_password)
-        .option("driver", "org.postgresql.Driver")
-        .load()
-    )
-
-    return df
-
-def transform_clickstream(df):
-    before_count = df.count()
-
-    df = df.filter(F.col("event_time").isNotNull())
-    df = df.filter(F.col("product_id").isNotNull())
-
-    df = df.withColumn(
-        "category_code",
-        F.when(
-            F.lower(F.trim(F.col("category_code"))) == "nan",
-            F.lit(None)
-        ).otherwise(F.col("category_code")),
-    )
-
-    df = df.withColumn("event_date", F.to_date("event_time"))
-    df = df.withColumn("event_hour", F.hour("event_time"))
-    df = df.withColumn("day_of_week", F.dayofweek("event_time"))
-
-    category_parts = F.split(F.col("category_code"), r"\.")
-
-    df = df.withColumn("category_level_1", F.get(category_parts, 0))
-    df = df.withColumn("category_level_2", F.get(category_parts, 1))
-    df = df.withColumn("category_level_3", F.get(category_parts, 2))
-
-    after_count = df.count()
-
-    return df, before_count, after_count
+from app.core.config import load_env
+from app.core.spark import get_spark
+from app.services.source_reader import read_source_table
+from app.services.transforms import transform_clickstream
 
 def truncate_clickhouse_table() -> None:
     clickhouse_host = os.getenv("CLICKHOUSE_HOST", "localhost")
@@ -137,7 +71,10 @@ def main() -> None:
     start_time = time.time()
 
     load_env()
-    spark = get_spark()
+    spark = get_spark(
+        app_name="full_snapshot",
+        jars_packages="org.postgresql:postgresql:42.7.3,com.clickhouse:clickhouse-jdbc:0.6.0",
+    )
 
     try:
         print("\nStart full snapshot\n")
@@ -148,12 +85,12 @@ def main() -> None:
         print(f"Rows before filtering: {before_count}")
         print(f"Rows after filtering: {after_count}")
 
-        print("Clear ClickHouse target table")
+        print("Clear Clickhouse target table")
         truncate_clickhouse_table()
 
         write_count = write_to_clickhouse(transformed_df)
 
-        print(f"Rows to ClickHouse: {write_count}")
+        print(f"Rows to Clickchouse: {write_count}")
 
         end_time = time.time()
         duration = round(end_time - start_time, 2)

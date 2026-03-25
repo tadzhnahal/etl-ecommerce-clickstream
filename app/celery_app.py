@@ -13,3 +13,5 @@ celery_app.conf.update(
     timezone="Europe/Moscow",
     enable_utc=True,
 )
+
+celery_app.autodiscover_tasks(["app"])

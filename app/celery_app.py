@@ -12,6 +12,7 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Europe/Moscow",
     enable_utc=True,
+    worker_pool="solo",
 )
 
 celery_app.autodiscover_tasks(["app"])

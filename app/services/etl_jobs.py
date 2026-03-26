@@ -89,7 +89,7 @@ def run_full_snapshot_onetl():
             "rows_before_filtering": before_count,
             "rows_after_filtering": after_count,
             "rows_written": write_count,
-            "duration": duration,
+            "duration_seconds": duration,
         }
 
     finally:
@@ -152,7 +152,7 @@ def run_incremental_onetl():
                     "rows_before_filtering": 0,
                     "rows_after_filtering": 0,
                     "rows_written": 0,
-                    "duration": duration,
+                    "duration_seconds": duration,
                 }
 
             transformed_df, before_count, after_count = transform_clickstream(source_df)

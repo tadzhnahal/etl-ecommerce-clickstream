@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from celery.result import AsyncResult
 from app.celery_app import celery_app
 from app.tasks import run_full_snapshot_task, run_incremental_task
-from app.services.task_history import save_task_to_history, get_task_history
+from app.services.task_history import save_task_to_history, get_task_history, task_exists_in_history
 
 app = FastAPI(title="ETL Clickstream API")
 
@@ -36,11 +36,18 @@ def run_incremental_etl():
 
 @app.get("/etl/status/{task_id}")
 def get_etl_status(task_id: str):
+    if not task_exists_in_history(task_id):
+        raise HTTPException(status_code=404, detail="Task not found")
+
     result = AsyncResult(task_id, app=celery_app)
 
     response = {
         "task_id": task_id,
+        "task_type": result.result.get("job_type") if result.successful() and isinstance(result.result, dict) else None,
         "status": result.status,
+        "result": None,
+        "error": None,
+
     }
 
     if result.status == "SUCCESS":
@@ -50,7 +57,7 @@ def get_etl_status(task_id: str):
 
     return response
 
-@app.get("/etl/history/")
+@app.get("/etl/history")
 def get_etl_history(limit: int = Query(default=20, ge=1, le=50)):
     return {
         "items": get_task_history(limit=limit),

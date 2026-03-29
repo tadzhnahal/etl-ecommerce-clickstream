@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-job-config
+  namespace: spark-jobs
+data:
+  PYTHONPATH: /opt/project
+  POSTGRES_HOST: "192.168.49.1"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "ecommerce"
+  POSTGRES_USER: "tadzhnahal"
+  CLICKHOUSE_HOST: "192.168.49.1"
+  CLICKHOUSE_PORT: "8123"
+  CLICKHOUSE_DB: "analytics"
+  CLICKHOUSE_USER: "tadzhnahal"

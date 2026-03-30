@@ -33,3 +33,5 @@ data/sample/
 metastore_db/
 derby.log
 celerybeat-schedule
+
+state/

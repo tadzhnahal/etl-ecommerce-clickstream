@@ -1,9 +1,12 @@
 from celery import Celery
+from app.core.settings import load_config
+
+config = load_config()
 
 celery_app = Celery(
     "etl_tasks",
-    broker_url="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
+    broker=config["celery"]["broker_url"],
+    backend=config["celery"]["result_backend"],
 )
 
 celery_app.conf.update(

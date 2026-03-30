@@ -2,10 +2,11 @@ import time
 
 from onetl.connection import Clickhouse, Postgres
 from onetl.db import DBReader, DBWriter
+from onetl.hwm.store import YAMLHWMStore
 from onetl.strategy import IncrementalStrategy
 from pyspark.sql import DataFrame, SparkSession
 
-from app.core.config import load_env
+from app.core.config import BASE_DIR, load_env
 from app.core.spark import get_spark
 from app.services.db_connections import get_clickhouse_connection, get_postgres_connection
 from app.services.transforms import transform_clickstream
@@ -30,7 +31,8 @@ TARGET_COLUMNS = [
 
 JARS_PACKAGES = (
     "org.postgresql:postgresql:42.7.3,"
-    "com.clickhouse:clickhouse-jdbc:0.6.0"
+    "com.clickhouse:clickhouse-jdbc:0.6.0,"
+    "org.apache.httpcomponents.client5:httpclient5:5.3.1"
 )
 
 def build_spark(app_name: str) -> SparkSession:
@@ -74,6 +76,12 @@ def build_result(
     }
     result.update(extra)
     return result
+
+def get_hwm_store() -> YAMLHWMStore:
+    hwm_store_path = BASE_DIR / "state" / "yml_hwm_store"
+    hwm_store_path.mkdir(parents=True, exist_ok=True)
+
+    return YAMLHWMStore(path=hwm_store_path)
 
 def run_full_snapshot_onetl() -> dict:
     start_time = time.time()
@@ -151,34 +159,37 @@ def run_incremental_onetl() -> dict:
             ),
         )
 
-        with IncrementalStrategy():
-            source_df = reader.run()
-            source_count = source_df.count()
-            print(f"Rows read from source: {source_count}")
+        hwm_store = get_hwm_store()
 
-            if source_count == 0:
-                duration = round(time.time() - start_time, 2)
-                print("No new rows found")
-                print(f"Incremental load finished in {duration} seconds\n")
+        with hwm_store:
+            with IncrementalStrategy():
+                source_df = reader.run()
+                source_count = source_df.count()
+                print(f"Rows read from source: {source_count}")
 
-                return build_result(
-                    job_type="incremental",
-                    status="success",
-                    duration_seconds=duration,
-                    rows_read=0,
-                    rows_before_filtering=0,
-                    rows_after_filtering=0,
-                    rows_written=0,
-                )
+                if source_count == 0:
+                    duration = round(time.time() - start_time, 2)
+                    print("No new rows found")
+                    print(f"Incremental load finished in {duration} seconds\n")
 
-            transformed_df, before_count, after_count = transform_clickstream(source_df)
+                    return build_result(
+                        job_type="incremental",
+                        status="success",
+                        duration_seconds=duration,
+                        rows_read=0,
+                        rows_before_filtering=0,
+                        rows_after_filtering=0,
+                        rows_written=0,
+                    )
 
-            print(f"Rows before filtering: {before_count}")
-            print(f"Rows after filtering: {after_count}")
+                transformed_df, before_count, after_count = transform_clickstream(source_df)
 
-            write_count = write_to_clickhouse_onetl(clickhouse, transformed_df)
+                print(f"Rows before filtering: {before_count}")
+                print(f"Rows after filtering: {after_count}")
 
-            print(f"Rows written to Clickhouse: {write_count}")
+                write_count = write_to_clickhouse_onetl(clickhouse, transformed_df)
+
+                print(f"Rows written to Clickhouse: {write_count}")
 
         duration = round(time.time() - start_time, 2)
         print(f"Incremental load finished in {duration} seconds\n")

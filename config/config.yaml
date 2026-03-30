@@ -3,20 +3,20 @@ project:
 
 source:
   type: postgres
-  host: 192.168.49.1
+  host: localhost
   port: 5432
   database: ecommerce
-  user: tadzhnahal
+  user: postgres
   schema: raw
   table: events
 
 target:
   type: clickhouse
-  host: 192.168.49.1
+  host: localhost
   http_port: 8123
   native_port: 9000
   database: analytics
-  user: tadzhnahal
+  user: default
   tables:
     events_clean: dm_events_clean
     product_metrics: dm_product_metrics
@@ -29,7 +29,7 @@ etl:
 
 hwm_store:
   type: yaml
-  path: ./state/hwm.yaml
+  path: ./state/yml_hwm_store
 
 spark:
   app_name: etl-ecommerce-clickstream

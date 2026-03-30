@@ -13,11 +13,9 @@ def get_postgres_connection(spark: SparkSession) -> Postgres:
     )
 
 def get_clickhouse_connection(spark: SparkSession) -> Clickhouse:
-    clickhouse_port = os.getenv("CLICKHOUSE_PORT", "8123")
-
     return Clickhouse(
         host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-        port=int(clickhouse_port),
+        port=int(os.getenv("CLICKHOUSE_HTTP_PORT", "8123")),
         user=os.getenv("CLICKHOUSE_USER", "tadzhnahal"),
         password=os.getenv("CLICKHOUSE_PASSWORD", ""),
         database=os.getenv("CLICKHOUSE_DB", "analytics"),

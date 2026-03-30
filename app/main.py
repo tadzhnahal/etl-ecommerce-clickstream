@@ -41,13 +41,16 @@ def get_etl_status(task_id: str):
 
     result = AsyncResult(task_id, app=celery_app)
 
+    task_type = None
+    if result.successful() and isinstance(result.result, dict):
+        task_type = result.result.get("job_type")
+
     response = {
         "task_id": task_id,
-        "task_type": result.result.get("job_type") if result.successful() and isinstance(result.result, dict) else None,
+        "task_type": task_type,
         "status": result.status,
         "result": None,
         "error": None,
-
     }
 
     if result.status == "SUCCESS":

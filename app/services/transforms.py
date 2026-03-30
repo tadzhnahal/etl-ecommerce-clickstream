@@ -1,6 +1,7 @@
 import pyspark.sql.functions as F
+from pyspark.sql import DataFrame
 
-def transform_clickstream(df):
+def transform_clickstream(df: DataFrame) -> tuple[DataFrame, int, int]:
     before_count = df.count()
 
     df = df.filter(F.col("event_time").isNotNull())
@@ -10,8 +11,8 @@ def transform_clickstream(df):
         "category_code",
         F.when(
             F.lower(F.trim(F.col("category_code"))) == "nan",
-            F.lit(None)
-        ).otherwise(F.col("category_code"))
+            F.lit(None),
+        ).otherwise(F.col("category_code")),
     )
 
     df = df.withColumn("event_date", F.to_date("event_time"))

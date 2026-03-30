@@ -13,6 +13,8 @@ env/
 
 .env
 
+k8s/spark-secret.yaml
+
 data/raw/
 data/sample/
 

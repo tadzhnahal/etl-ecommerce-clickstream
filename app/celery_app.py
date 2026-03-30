@@ -1,21 +1,21 @@
 from celery import Celery
-from app.core.settings import load_config
+from app.core.config import config
 
-config = load_config()
+celery_config = config["celery"]
 
 celery_app = Celery(
     "etl_tasks",
-    broker=config["celery"]["broker_url"],
-    backend=config["celery"]["result_backend"],
+    broker=celery_config["broker_url"],
+    backend=celery_config["result_backend"],
 )
 
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    timezone="Europe/Moscow",
+    timezone=celery_config["timezone"],
     enable_utc=True,
-    worker_pool="solo",
+    worker_pool=celery_config["worker_pool"],
 )
 
 celery_app.autodiscover_tasks(["app"])

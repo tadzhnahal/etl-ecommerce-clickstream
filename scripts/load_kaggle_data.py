@@ -6,12 +6,14 @@ from pathlib import Path
 
 import pandas as pd
 import psycopg2
-from dotenv import load_dotenv
 from psycopg2.extras import execute_batch
+from app.core.config import config, load_env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data" / "raw"
 SQL_DIR = BASE_DIR / "sql" / "postgres"
+SOURCE = config["source"]
+SOURCE_TABLE = f"{SOURCE['schema']}.{SOURCE['table']}"
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)s %(levelname)s - %(message)s',)
@@ -25,15 +27,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--append", action="store_true", help="Append data to existing table")
     return parser.parse_args()
 
-def load_env() -> None:
-    load_dotenv(BASE_DIR / ".env")
-
 def get_db_params() -> dict:
     return {
-        "host": os.getenv("POSTGRES_HOST", "localhost"),
-        "port": os.getenv("POSTGRES_PORT", "5432"),
-        "dbname": os.getenv("POSTGRES_DB", "ecommerce"),
-        "user": os.getenv("POSTGRES_USER", "tadzhnahal"),
+        "host": SOURCE["host"],
+        "port": SOURCE["port"],
+        "dbname": SOURCE["database"],
+        "user": SOURCE["user"],
         "password": os.getenv("POSTGRES_PASSWORD", ""),
     }
 
@@ -51,7 +50,7 @@ def prepare_database(connection, append: bool) -> None:
     if not append:
         logger.info("Clear table raw.events before load")
         with connection.cursor() as cursor:
-            cursor.execute("truncate table raw.events;")
+            cursor.execute(f"truncate table {SOURCE_TABLE};")
         connection.commit()
 
 def download_dataset() -> None:

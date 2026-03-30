@@ -1,21 +1,19 @@
 import os
 from pyspark.sql import SparkSession
+from app.core.config import config
 
 def read_source_table(spark: SparkSession):
-    postgres_host = os.getenv("POSTGRES_HOST", "localhost")
-    postgres_port = os.getenv("POSTGRES_PORT", "5432")
-    postgres_db = os.getenv("POSTGRES_DB", "ecommerce")
-    postgres_user = os.getenv("POSTGRES_USER", "tadzhnahal")
-    postgres_password = os.getenv("POSTGRES_PASSWORD", "")
+    source = config["source"]
+    source_table = f"{source['schema']}.{source['table']}"
 
-    jdbc_url = f"jdbc:postgresql://{postgres_host}:{postgres_port}/{postgres_db}"
+    jdbc_url = f"jdbc:postgresql://{source['host']}:{source['port']}/{source['database']}"
 
     df = (
         spark.read.format("jdbc")
         .option("url", jdbc_url)
-        .option("dbtable", "raw.events")
-        .option("user", postgres_user)
-        .option("password", postgres_password)
+        .option("dbtable", source_table)
+        .option("user", source["user"])
+        .option("password", os.getenv("POSTGRES_PASSWORD", ""))
         .option("driver", "org.postgresql.Driver")
         .load()
     )

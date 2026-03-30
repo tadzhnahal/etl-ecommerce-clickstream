@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 from onetl.connection import Clickhouse, Postgres
 from onetl.db import DBReader, DBWriter
@@ -6,7 +7,7 @@ from onetl.hwm.store import YAMLHWMStore
 from onetl.strategy import IncrementalStrategy
 from pyspark.sql import DataFrame, SparkSession
 
-from app.core.config import BASE_DIR, load_env
+from app.core.config import BASE_DIR, config, load_env
 from app.core.spark import get_spark
 from app.services.db_connections import get_clickhouse_connection, get_postgres_connection
 from app.services.transforms import transform_clickstream
@@ -29,18 +30,16 @@ TARGET_COLUMNS = [
     "category_level_3",
 ]
 
-JARS_PACKAGES = (
-    "org.postgresql:postgresql:42.7.3,"
-    "com.clickhouse:clickhouse-jdbc:0.6.0,"
-    "org.apache.httpcomponents.client5:httpclient5:5.3.1"
-)
+SOURCE_TABLE = f"{config['source']['schema']}.{config['source']['table']}"
+TARGET_TABLE = f"{config['target']['database']}.{config['target']['tables']['events_clean']}"
+HWM_COLUMN = config["etl"]["hwm_column"]
+HWM_NAME = f"clickstream_{HWM_COLUMN}_hwm"
+ETL_FETCHSIZE = int(config["etl"]["fetchsize"])
+WRITE_BATCHSIZE = int(config["etl"]["write_batchsize"])
 
 def build_spark(app_name: str) -> SparkSession:
     load_env()
-    return get_spark(
-        app_name=app_name,
-        jars_packages=JARS_PACKAGES,
-    )
+    return get_spark(app_name=app_name)
 
 def select_target_columns(df: DataFrame) -> DataFrame:
     return df.select(*TARGET_COLUMNS)
@@ -51,9 +50,10 @@ def write_to_clickhouse_onetl(clickhouse: Clickhouse, df: DataFrame) -> int:
 
     writer = DBWriter(
         connection=clickhouse,
-        table="analytics.dm_events_clean",
+        table=TARGET_TABLE,
         options=Clickhouse.WriteOptions(
             if_exists="append",
+            batchsize=WRITE_BATCHSIZE,
         ),
     )
 
@@ -61,7 +61,7 @@ def write_to_clickhouse_onetl(clickhouse: Clickhouse, df: DataFrame) -> int:
     return write_count
 
 def truncate_clickhouse_table(clickhouse: Clickhouse) -> None:
-    clickhouse.execute("truncate analytics.dm_events_clean")
+    clickhouse.execute(f"truncate {TARGET_TABLE}")
 
 def build_result(
     job_type: str,
@@ -78,7 +78,12 @@ def build_result(
     return result
 
 def get_hwm_store() -> YAMLHWMStore:
-    hwm_store_path = BASE_DIR / "state" / "yml_hwm_store"
+    hwm_store_path = Path(config["hwm_store"]["path"])
+
+    if not hwm_store_path.is_absolute():
+        hwm_store_path = BASE_DIR / hwm_store_path
+
+    hwm_store_path = hwm_store_path.resolve()
     hwm_store_path.mkdir(parents=True, exist_ok=True)
 
     return YAMLHWMStore(path=hwm_store_path)
@@ -95,7 +100,7 @@ def run_full_snapshot_onetl() -> dict:
 
         reader = DBReader(
             connection=postgres,
-            source="raw.events",
+            source=SOURCE_TABLE,
         )
 
         source_df = reader.run()
@@ -138,7 +143,7 @@ def run_incremental_onetl() -> dict:
 
         reader = DBReader(
             connection=postgres,
-            source="raw.events",
+            source=SOURCE_TABLE,
             columns=[
                 "event_time",
                 "event_type",
@@ -151,11 +156,11 @@ def run_incremental_onetl() -> dict:
                 "user_session",
             ],
             hwm=DBReader.AutoDetectHWM(
-                name="clickstream_event_time_hwm",
-                expression="event_time",
+                name=HWM_NAME,
+                expression=HWM_COLUMN,
             ),
             options=Postgres.ReadOptions(
-                fetchsize=5000,
+                fetchsize=ETL_FETCHSIZE,
             ),
         )
 

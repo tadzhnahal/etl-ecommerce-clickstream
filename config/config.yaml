@@ -6,7 +6,7 @@ source:
   host: localhost
   port: 5432
   database: ecommerce
-  user: postgres
+  user: tadzhnahal
   schema: raw
   table: events
 
@@ -16,7 +16,7 @@ target:
   http_port: 8123
   native_port: 9000
   database: analytics
-  user: default
+  user: tadzhnahal
   tables:
     events_clean: dm_events_clean
     product_metrics: dm_product_metrics
@@ -24,7 +24,8 @@ target:
     funnel_metrics: dm_funnel_metrics
 
 etl:
-  batch_size: 100000
+  fetchsize: 5000
+  write_batchsize: 20000
   hwm_column: event_time
 
 hwm_store:
@@ -36,6 +37,10 @@ spark:
   master: local[*]
   timezone: UTC
   shuffle_partitions: 8
+  jars_packages:
+    - org.postgresql:postgresql:42.7.3
+    - com.clickhouse:clickhouse-jdbc:0.6.0
+    - org.apache.httpcomponents.client5:httpclient5:5.3.1
 
 api:
   host: 0.0.0.0
@@ -44,3 +49,5 @@ api:
 celery:
   broker_url: redis://localhost:6379/0
   result_backend: redis://localhost:6379/1
+  timezone: Europe/Moscow
+  worker_pool: solo

@@ -3,8 +3,9 @@ from celery.result import AsyncResult
 from app.celery_app import celery_app
 from app.tasks import run_full_snapshot_task, run_incremental_task
 from app.services.task_history import save_task_to_history, get_task_history, task_exists_in_history
+from app.core.config import config
 
-app = FastAPI(title="ETL Clickstream API")
+app = FastAPI(title=config["project"]["name"])
 
 @app.get("/")
 def root():

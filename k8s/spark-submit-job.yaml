@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-submit-job
+  namespace: spark-jobs
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: spark-driver
+      restartPolicy: Never
+      containers:
+        - name: spark-submit
+          image: etl-clickstream-spark:dev
+          imagePullPolicy: Never
+          env:
+            - name: KUBECONFIG
+              value: /tmp/dummy-kubeconfig
+          command:
+            - /opt/spark/bin/spark-submit
+          args:
+            - --master
+            - k8s://https://kubernetes.default.svc:443
+            - --deploy-mode
+            - cluster
+            - --name
+            - spark-full-job
+            - --packages
+            - org.postgresql:postgresql:42.7.3,com.clickhouse:clickhouse-jdbc:0.6.0
+            - --conf
+            - spark.kubernetes.namespace=spark-jobs
+            - --conf
+            - spark.kubernetes.container.image=etl-clickstream-spark:dev
+            - --conf
+            - spark.kubernetes.container.image.pullPolicy=Never
+            - --conf
+            - spark.kubernetes.authenticate.driver.serviceAccountName=spark-driver
+            - --conf
+            - spark.kubernetes.driver.podTemplateFile=/opt/k8s/driver-pod-template.yaml
+            - --conf
+            - spark.executorEnv.PYTHONPATH=/opt/project
+            - --conf
+            - spark.kubernetes.driverEnv.IVY_HOME=/tmp/.ivy2
+            - --conf
+            - spark.kubernetes.driverEnv.IVY_CACHE_DIR=/tmp/.ivy2/cache
+            - --conf
+            - spark.jars.ivy=/tmp/.ivy2
+            - --conf
+            - spark.executor.instances=1
+            - --conf
+            - spark.driver.memory=1g
+            - --conf
+            - spark.executor.memory=1g
+            - --conf
+            - spark.pyspark.python=python3
+            - local:///opt/project/app/jobs/spark_full_job.py
+          volumeMounts:
+            - name: spark-k8s-files
+              mountPath: /opt/k8s
+              readOnly: true
+      volumes:
+        - name: spark-k8s-files
+          configMap:
+            name: spark-submit-job-files

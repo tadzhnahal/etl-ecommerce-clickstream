@@ -1,5 +1,9 @@
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame
+from pyspark.sql import Window
+
+max_events_per_minute = 30
+max_events_per_session = 500
 
 def transform_clickstream(df: DataFrame) -> tuple[DataFrame, int, int]:
     before_count = df.count()
@@ -24,6 +28,21 @@ def transform_clickstream(df: DataFrame) -> tuple[DataFrame, int, int]:
     df = df.withColumn("category_level_1", F.get(category_parts, 0))
     df = df.withColumn("category_level_2", F.get(category_parts, 1))
     df = df.withColumn("category_level_3", F.get(category_parts, 2))
+
+    df = df.withColumn("event_minute", F.date_trunc("minute", F.col("event_time")))
+
+    user_minute_window = Window.partitionBy("user_id", "event_minute")
+    session_window = Window.partitionBy("user_session")
+
+    df = df.withColumn("events_per_minute", F.count("*").over(user_minute_window))
+    df = df.withColumn("events_per_session", F.count("*").over(session_window))
+
+    df = df.filter(
+        (F.col("events_per_minute") <= max_events_per_minute)
+        & (F.col("events_per_session") <= max_events_per_session)
+    )
+
+    df = df.drop("event_minute", "events_per_minute", "events_per_session")
 
     after_count = df.count()
 

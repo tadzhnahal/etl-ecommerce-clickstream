@@ -50,11 +50,11 @@ data:
                 configMapKeyRef:
                   name: spark-job-config
                   key: CLICKHOUSE_HOST
-            - name: CLICKHOUSE_PORT
+            - name: CLICKHOUSE_HTTP_PORT
               valueFrom:
                 configMapKeyRef:
                   name: spark-job-config
-                  key: CLICKHOUSE_PORT
+                  key: CLICKHOUSE_HTTP_PORT
             - name: CLICKHOUSE_DB
               valueFrom:
                 configMapKeyRef:
